@@ -193,7 +193,7 @@ a {
 .hero h1 {
   max-width: 720px;
   margin: 0;
-  font-size: clamp(3.6rem, 7vw, 7.7rem);
+  font-size: clamp(3.6rem, min(7vw, 8.75svh), 7.7rem);
   font-weight: 500;
   letter-spacing: -0.075em;
   line-height: 0.88;
@@ -284,7 +284,7 @@ a {
   display: grid;
   place-items: center;
   justify-self: end;
-  width: min(45vw, 560px);
+  width: min(45vw, 52svh, 560px);
   aspect-ratio: 1;
 }
 
