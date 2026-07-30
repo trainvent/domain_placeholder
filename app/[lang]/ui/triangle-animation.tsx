@@ -21,7 +21,6 @@ const CONFIG = {
   keepHistoryCycles: 2,
   maxDepth: 1500,
   strokeWidth: 8,
-  strokeColor: "#101010",
   showFill: true,
   fillBaseHue: 26,
   fillSaturation: 73,
@@ -202,6 +201,15 @@ export function TriangleAnimation() {
     const stepDegrees = CONFIG.targetDeg / CONFIG.trianglesPerCycle;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let frame = 0;
+    let strokeColor = getComputedStyle(document.documentElement)
+      .getPropertyValue("--canvas-stroke")
+      .trim() || "#101010";
+    const updateStrokeColor = () => {
+      strokeColor = getComputedStyle(document.documentElement)
+        .getPropertyValue("--canvas-stroke")
+        .trim() || "#101010";
+    };
+    window.addEventListener("themechange", updateStrokeColor);
 
     const ensureTriangles = (minimum: number) => {
       while (triangles.length < minimum && triangles.length < CONFIG.maxDepth) {
@@ -226,7 +234,7 @@ export function TriangleAnimation() {
         context.fill();
       }
       context.lineWidth = CONFIG.strokeWidth;
-      context.strokeStyle = CONFIG.strokeColor;
+      context.strokeStyle = strokeColor;
       context.stroke();
       context.globalAlpha = 1;
     };
@@ -235,7 +243,7 @@ export function TriangleAnimation() {
       context.beginPath();
       context.arc(center[0], center[1], outerRadius, 0, 2 * Math.PI);
       context.lineWidth = CONFIG.strokeWidth;
-      context.strokeStyle = CONFIG.strokeColor;
+      context.strokeStyle = strokeColor;
       context.stroke();
     };
 
@@ -391,7 +399,10 @@ export function TriangleAnimation() {
     };
 
     frame = window.requestAnimationFrame(render);
-    return () => window.cancelAnimationFrame(frame);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("themechange", updateStrokeColor);
+    };
   }, []);
 
   return (

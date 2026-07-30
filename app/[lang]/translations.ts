@@ -11,6 +11,9 @@ export const copy = {
       system: "System language",
       english: "English",
       german: "Deutsch",
+      theme: "Color mode",
+      dark: "Dark",
+      light: "Light",
     },
     hero: {
       eyebrow: "A quiet corner of the internet",
@@ -34,6 +37,9 @@ export const copy = {
       system: "Systemsprache",
       english: "English",
       german: "Deutsch",
+      theme: "Farbmodus",
+      dark: "Dunkel",
+      light: "Hell",
     },
     hero: {
       eyebrow: "Eine ruhige Ecke des Internets",

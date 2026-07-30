@@ -44,7 +44,20 @@ export default async function LocaleLayout({
   }
 
   return (
-    <html lang={lang as Locale}>
+    <html
+      lang={lang as Locale}
+      data-theme="dark"
+      style={{ colorScheme: "dark" }}
+      suppressHydrationWarning
+    >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              'try{var t=localStorage.getItem("trainvent-theme");if(t==="light"){document.documentElement.dataset.theme="light";document.documentElement.style.colorScheme="light"}}catch(e){}',
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

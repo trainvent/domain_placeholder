@@ -2,6 +2,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { DomainName } from "./ui/domain-name";
 import { LanguageSelector } from "./ui/language-selector";
+import { ThemeSelector } from "./ui/theme-selector";
 import { TriangleAnimation } from "./ui/triangle-animation";
 import { copy, hasLocale } from "./translations";
 
@@ -41,7 +42,10 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
           />
           <span>Trainvent</span>
         </a>
-        <LanguageSelector lang={lang} labels={t.nav} />
+        <div className="topbar-actions">
+          <ThemeSelector labels={t.nav} />
+          <LanguageSelector lang={lang} labels={t.nav} />
+        </div>
       </header>
 
       <main>
