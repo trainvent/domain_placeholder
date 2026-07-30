@@ -1,0 +1,53 @@
+name: Publish Domain Repositories
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "README.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - repo: trainvent/website-trainvent-org
+            domain: trainvent.org
+            branch: main
+          - repo: trainvent/website-vivot-org
+            domain: vivot.org
+            branch: main
+          - repo: trainvent/website-stimmapp-org
+            domain: stimmapp.org
+            branch: main
+
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static website
+        run: npm run build
+
+      - name: Publish static output
+        env:
+          TARGET_BRANCH: ${{ matrix.branch }}
+          TARGET_DOMAIN: ${{ matrix.domain }}
+          TARGET_REPO: ${{ matrix.repo }}
+          WEBSITE_DEPLOY_TOKEN: ${{ secrets.WEBSITE_DEPLOY_TOKEN }}
+        run: /usr/bin/bash ci_scripts/publish_website_repo.sh out

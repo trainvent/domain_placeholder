@@ -1,36 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Trainvent domain placeholder
 
-## Getting Started
+A bilingual static placeholder published from one source repository to:
 
-First, run the development server:
+- `trainvent/website-trainvent-org` → `trainvent.org`
+- `trainvent/website-vivot-org` → `vivot.org`
+- `trainvent/website-stimmapp-org` → `stimmapp.org`
+
+## Local development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Production build
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Next.js writes the static site to `out/`.
 
-## Learn More
+## Deployment
 
-To learn more about Next.js, take a look at the following resources:
+The workflow at `.github/workflows/publish-domain-repos.yml` builds the site
+and publishes identical output to all three deployment repositories. It writes
+the appropriate `CNAME` file for each domain.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The source repository needs an Actions secret named `WEBSITE_DEPLOY_TOKEN`.
+Use a fine-grained GitHub token with repository contents read/write access to
+the three deployment repositories.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+For each deployment repository, configure GitHub Pages to deploy from the
+`main` branch and repository root.
