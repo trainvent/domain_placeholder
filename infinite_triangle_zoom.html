@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Infinite Triangle Build + Zoom</title>
+  <style>
+    :root {
+      --bg: #f6f5f0;
+      --fg: #131313;
+    }
+
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      background: radial-gradient(circle at 20% 10%, #ffffff, var(--bg) 55%);
+      color: var(--fg);
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+    }
+
+    .wrap {
+      display: grid;
+      place-items: center;
+      height: 100%;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+
+    canvas {
+      width: min(92vmin, 980px);
+      height: min(92vmin, 980px);
+      border: none;
+      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.08);
+      background: transparent;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <canvas id="c" width="1080" height="1080"></canvas>
+  </div>
+
+  <script>
+    // Tune these values to match your static generator.
+    const CONFIG = {
+      stepDeg: 60 / 9,
+      targetDeg: 60,
+      buildSeconds: 2.8,
+      zoomSeconds: 1.35,
+      showCircleAtStartSeconds: 0.15,
+      keepHistoryCycles: 2,
+      maxDepth: 6000,
+      strokeWidth: 8,
+      strokeColor: '#101010',
+      fillBaseHue: 26,
+      fillSat: 73,
+      fillLight: 52
+    };
+
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+
+    function v(x, y) { return [x, y]; }
+    function add(a, b) { return [a[0] + b[0], a[1] + b[1]]; }
+    function sub(a, b) { return [a[0] - b[0], a[1] - b[1]]; }
+    function mul(a, s) { return [a[0] * s, a[1] * s]; }
+    function matVec(m, p) { return [m[0][0] * p[0] + m[0][1] * p[1], m[1][0] * p[0] + m[1][1] * p[1]]; }
+
+    function equilateral(center, radius, rotDeg = 0) {
+      const pts = [];
+      const rot = rotDeg * Math.PI / 180;
+      for (let k = 0; k < 3; k++) {
+        const a = rot + (-Math.PI / 2) + (k * 2 * Math.PI / 3);
+        pts.push(v(center[0] + radius * Math.cos(a), center[1] + radius * Math.sin(a)));
+      }
+      return pts;
+    }
+
+    function solveLinear6(A, b) {
+      const n = 6;
+      const M = A.map((row, i) => row.concat([b[i]]));
+      for (let col = 0; col < n; col++) {
+        let piv = col;
+        for (let r = col + 1; r < n; r++) {
+          if (Math.abs(M[r][col]) > Math.abs(M[piv][col])) piv = r;
+        }
+        if (Math.abs(M[piv][col]) < 1e-12) return null;
+        if (piv !== col) {
+          const tmp = M[col];
+          M[col] = M[piv];
+          M[piv] = tmp;
+        }
+
+        const pv = M[col][col];
+        for (let j = col; j <= n; j++) M[col][j] /= pv;
+
+        for (let r = 0; r < n; r++) {
+          if (r === col) continue;
+          const f = M[r][col];
+          if (f === 0) continue;
+          for (let j = col; j <= n; j++) M[r][j] -= f * M[col][j];
+        }
+      }
+      return M.map((row) => row[n]);
+    }
+
+    function solveInnerTriangle(outerVertices, thetaDeg) {
+      const th = thetaDeg * Math.PI / 180;
+      const R = [
+        [Math.cos(th), -Math.sin(th)],
+        [Math.sin(th), Math.cos(th)]
+      ];
+
+      const A = Array.from({ length: 6 }, () => Array(6).fill(0));
+      const b = Array(6).fill(0);
+
+      for (let i = 0; i < 3; i++) {
+        const Vi = outerVertices[i];
+        const Vj = outerVertices[(i + 1) % 3];
+        const edge = sub(Vj, Vi);
+        const RVi = matVec(R, Vi);
+
+        const rowX = 2 * i;
+        const rowY = rowX + 1;
+
+        A[rowX][0] = RVi[0];
+        A[rowX][1] = 1;
+        A[rowX][2] = 0;
+        A[rowX][3 + i] = -edge[0];
+        b[rowX] = Vi[0];
+
+        A[rowY][0] = RVi[1];
+        A[rowY][1] = 0;
+        A[rowY][2] = 1;
+        A[rowY][3 + i] = -edge[1];
+        b[rowY] = Vi[1];
+      }
+
+      const x = solveLinear6(A, b);
+      if (!x) return null;
+
+      const s = x[0];
+      const t = v(x[1], x[2]);
+      const W = outerVertices.map((p) => add(mul(matVec(R, p), s), t));
+      return { verts: W, scale: s };
+    }
+
+    function affineFromTriangles(src, dst) {
+      const S0 = src[0], S1 = src[1], S2 = src[2];
+      const D0 = dst[0], D1 = dst[1], D2 = dst[2];
+      const A = [
+        [S0[0], S0[1], 1, 0, 0, 0],
+        [0, 0, 0, S0[0], S0[1], 1],
+        [S1[0], S1[1], 1, 0, 0, 0],
+        [0, 0, 0, S1[0], S1[1], 1],
+        [S2[0], S2[1], 1, 0, 0, 0],
+        [0, 0, 0, S2[0], S2[1], 1]
+      ];
+      const b = [D0[0], D0[1], D1[0], D1[1], D2[0], D2[1]];
+      const x = solveLinear6(A, b);
+      if (!x) return { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 };
+      return { a: x[0], b: x[1], tx: x[2], c: x[3], d: x[4], ty: x[5] };
+    }
+
+    function applyAffine(T, p) {
+      return [T.a * p[0] + T.b * p[1] + T.tx, T.c * p[0] + T.d * p[1] + T.ty];
+    }
+
+    function mixAffine(A, B, t) {
+      return {
+        a: A.a + (B.a - A.a) * t,
+        b: A.b + (B.b - A.b) * t,
+        c: A.c + (B.c - A.c) * t,
+        d: A.d + (B.d - A.d) * t,
+        tx: A.tx + (B.tx - A.tx) * t,
+        ty: A.ty + (B.ty - A.ty) * t
+      };
+    }
+
+    function easeInOut(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function triColor(globalIndex) {
+      const hue = (CONFIG.fillBaseHue + globalIndex * 7) % 360;
+      return `hsl(${hue} ${CONFIG.fillSat}% ${CONFIG.fillLight}%)`;
+    }
+
+    function drawTriangle(points, fill, alpha = 1) {
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.moveTo(points[0][0], points[0][1]);
+      ctx.lineTo(points[1][0], points[1][1]);
+      ctx.lineTo(points[2][0], points[2][1]);
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.lineWidth = CONFIG.strokeWidth;
+      ctx.strokeStyle = CONFIG.strokeColor;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    const center = [canvas.width / 2, canvas.height / 2];
+    const outerRadius = canvas.width * 0.46;
+    const nPerCycle = Math.round(CONFIG.targetDeg / CONFIG.stepDeg);
+
+    const triangles = [equilateral(center, outerRadius, 0)];
+    function ensureTriangles(minCount) {
+      while (triangles.length < minCount && triangles.length < CONFIG.maxDepth) {
+        const next = solveInnerTriangle(triangles[triangles.length - 1], CONFIG.stepDeg);
+        if (!next || next.scale > 0.999999) break;
+        triangles.push(next.verts);
+      }
+    }
+
+    ensureTriangles(nPerCycle + 3);
+
+    function drawCircleTransformed(T) {
+      const steps = 120;
+      ctx.beginPath();
+      for (let i = 0; i <= steps; i++) {
+        const a = (i / steps) * 2 * Math.PI;
+        const p = [center[0] + outerRadius * Math.cos(a), center[1] + outerRadius * Math.sin(a)];
+        const q = applyAffine(T, p);
+        if (i === 0) ctx.moveTo(q[0], q[1]); else ctx.lineTo(q[0], q[1]);
+      }
+      ctx.closePath();
+      ctx.lineWidth = CONFIG.strokeWidth;
+      ctx.strokeStyle = CONFIG.strokeColor;
+      ctx.stroke();
+    }
+
+    function drawFixedBoundaryCircle() {
+      ctx.beginPath();
+      ctx.arc(center[0], center[1], outerRadius, 0, 2 * Math.PI);
+      ctx.lineWidth = CONFIG.strokeWidth;
+      ctx.strokeStyle = CONFIG.strokeColor;
+      ctx.stroke();
+    }
+
+    function render(nowMs) {
+      const t = nowMs / 1000;
+      const cycleLen = CONFIG.buildSeconds + CONFIG.zoomSeconds;
+      const cycleIndex = Math.floor(t / cycleLen);
+      const local = t % cycleLen;
+
+      const inBuild = local < CONFIG.buildSeconds;
+      const p = inBuild
+        ? (local / CONFIG.buildSeconds)
+        : ((local - CONFIG.buildSeconds) / CONFIG.zoomSeconds);
+
+      const neededDepth = (cycleIndex + 1) * nPerCycle + 3;
+      ensureTriangles(neededDepth);
+      const maxDepth = triangles.length - 1;
+      const maxRenderableCycles = Math.max(1, Math.floor((maxDepth - nPerCycle) / nPerCycle) + 1);
+      const effectiveCycleIndex = cycleIndex % maxRenderableCycles;
+      const baseDepth = effectiveCycleIndex * nPerCycle;
+
+      const startIdx = Math.min(baseDepth, maxDepth);
+      const endIdx = Math.min(baseDepth + nPerCycle, maxDepth);
+      const outerIdx = 0;
+      const cameraStart = affineFromTriangles(triangles[startIdx], triangles[outerIdx]);
+      const cameraEnd = affineFromTriangles(triangles[endIdx], triangles[outerIdx]);
+      const camera = inBuild ? cameraStart : mixAffine(cameraStart, cameraEnd, easeInOut(p));
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Keep the visual frame circular and fixed in size.
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(center[0], center[1], outerRadius, 0, 2 * Math.PI);
+      ctx.clip();
+
+      if (t < CONFIG.showCircleAtStartSeconds) {
+        drawCircleTransformed(camera);
+      }
+
+      const currentTopDepth = inBuild ? (baseDepth + p * nPerCycle) : (baseDepth + nPerCycle);
+      const fullTopDepth = Math.min(maxDepth, Math.floor(currentTopDepth));
+      const partialAlpha = currentTopDepth - Math.floor(currentTopDepth);
+      const historyStart = Math.max(0, baseDepth - CONFIG.keepHistoryCycles * nPerCycle);
+
+      // Draw a rolling history window first so old outer layers do not vanish abruptly.
+      for (let triIdx = historyStart; triIdx <= fullTopDepth; triIdx++) {
+        const tri = triangles[triIdx].map((pt) => applyAffine(camera, pt));
+        drawTriangle(tri, triColor(triIdx), 1);
+      }
+
+      const partialIdx = fullTopDepth + 1;
+      if (partialIdx <= maxDepth && partialAlpha > 1e-6) {
+        const tri = triangles[partialIdx].map((pt) => applyAffine(camera, pt));
+        drawTriangle(tri, triColor(partialIdx), partialAlpha);
+      }
+      ctx.restore();
+
+      drawFixedBoundaryCircle();
+
+      requestAnimationFrame(render);
+    }
+
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>
